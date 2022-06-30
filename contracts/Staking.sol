@@ -6,11 +6,11 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 
-interface RewardsToken {
+interface IRewardsToken {
     function mint(address account, uint256 amount) external;
 }
 
-interface NFT {
+interface IERC721 {
     function safeTransferFrom(
         address from,
         address to,
@@ -20,7 +20,7 @@ interface NFT {
 
 contract Staking is ERC721Holder, Ownable, ReentrancyGuard {
     // The ERC20 rewards will be minted as
-    RewardsToken rewardsToken;
+    IRewardsToken rewardsToken;
 
     // returns number of tokens staked
     uint public totalTokensStaked;
@@ -62,6 +62,15 @@ contract Staking is ERC721Holder, Ownable, ReentrancyGuard {
     event Liquidation(uint indexed newPrice, uint indexed oldPrice, address indexed collection);
 
 
+
+    // * initialize the ERC20 contract
+    constructor(address _rewardsToken) {
+        rewardsToken = IRewardsToken(_rewardsToken);
+    }
+
+
+
+
     // calculate 1 / L(t) for [0, b]
     function rewardPerToken() public view returns (uint) {
         // no division by 0
@@ -91,12 +100,7 @@ contract Staking is ERC721Holder, Ownable, ReentrancyGuard {
 
     }
 
-
-    // * initialize the ERC20 contract
-    constructor(address _rewardsToken) {
-        rewardsToken = RewardsToken(_rewardsToken);
-    }
-
+ 
     // user must `approve` this contract to transfer tokens before staking
     function stake(address[] calldata tokenAddresses, uint[] calldata tokenIds) external updateRewards(msg.sender) {
         require(tokenIds.length == tokenAddresses.length, "bad length");
@@ -111,7 +115,7 @@ contract Staking is ERC721Holder, Ownable, ReentrancyGuard {
             Collection memory c = collections[tokenAddresses[i]];
 
             // verify accepted token w/ valid price
-            require(c.accepted == 1, "not accepted token");
+            require(c.accepted == 1, "not accepted collection");
             
             tokenToOwner[tokenAddresses[i]][tokenIds[i]] = msg.sender;
 
@@ -119,17 +123,19 @@ contract Staking is ERC721Holder, Ownable, ReentrancyGuard {
             _userValueStaked += c.initPrice;
             
             // transfer the token
-            NFT(tokenAddresses[i]).safeTransferFrom(msg.sender, address(this), tokenIds[i]);
+            IERC721(tokenAddresses[i]).safeTransferFrom(msg.sender, address(this), tokenIds[i]);
         }
 
         // write to storage after all updates
         totalValueStaked = _totalValueStaked;
         userValueStaked[msg.sender] = _userValueStaked;
         totalTokensStaked += tokenIds.length;
+
+        emit Staked(tokenAddresses, tokenIds, msg.sender);
     }
 
     // * unstaking
-    // * transfers back tokens and cleans up/deletes storage for Stakes withdrawn
+    // * transfers back tokens and adjust pool and user staked values
     function withdraw(address[] calldata tokenAddresses, uint[] calldata tokenIds) external updateRewards(msg.sender)  {
         require(tokenIds.length == tokenAddresses.length, "bad length");
         require(tokenIds.length > 0, "must be > 0");
@@ -151,7 +157,7 @@ contract Staking is ERC721Holder, Ownable, ReentrancyGuard {
             delete tokenToOwner[tokenAddresses[i]][tokenIds[i]];
 
             // transfer the token back
-            NFT(tokenAddresses[i]).safeTransferFrom(address(this), msg.sender, tokenIds[i]);
+            IERC721(tokenAddresses[i]).safeTransferFrom(address(this), msg.sender, tokenIds[i]);
         }
 
         // write to storage after all updates
@@ -159,6 +165,7 @@ contract Staking is ERC721Holder, Ownable, ReentrancyGuard {
         userValueStaked[msg.sender] = _userValueStaked;
         totalTokensStaked -= tokenAddresses.length;
 
+        emit Withdraw(tokenAddresses, tokenIds, msg.sender);
 
     }
 
@@ -170,6 +177,8 @@ contract Staking is ERC721Holder, Ownable, ReentrancyGuard {
         require(amount > 0, "no rewards");
         rewards[msg.sender] = 0;
         rewardsToken.mint(msg.sender, amount);
+
+        emit Redeem(amount, msg.sender);
     }
 
     
@@ -180,6 +189,7 @@ contract Staking is ERC721Holder, Ownable, ReentrancyGuard {
 
     function createCollection(address token, uint price, uint8 accepted) public onlyOwner {
         require(price > 0, "price must be > 0");
+        require(collections[token].initPrice == 0, "coll already created");
         Collection memory c = Collection(price, price, accepted, 0);
         collections[token] = c;
     }
