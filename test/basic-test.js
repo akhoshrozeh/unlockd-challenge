@@ -3,8 +3,6 @@ const { expect } = require('chai');
 const chai = require('chai');
 const provider = waffle.provider;
 
-// note: the owner of contract is the deployer. however, we want the only account to be OWNER_ROLE is the gnosis safe contract account
-
 describe('Basic Functionalities\n  *********************\n', async function() {
     before('get factories', async function () {
         this.accounts = await hre.ethers.getSigners();
