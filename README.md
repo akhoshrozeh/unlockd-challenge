@@ -9,4 +9,6 @@ Just clone this repo, run `npm install`, and then `npx hardhat test` to run the 
 Staking reward mechanics/implementation are based off [this](https://www.paradigm.xyz/2021/05/liquidity-mining-on-uniswap-v3) article. <br/>
 TL;DR Uses same as synthetix. Rewards of a user are based on their share of the liquidity pool. <br/>
 
+See `contracts/` for 3 contracts implemented, and check out `test/basic-test.js` for test cases demonstrating basic functionality. <br/>
+
 
